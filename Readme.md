@@ -82,9 +82,17 @@ If the .config is present, the config values will override the hardcoded ones.
 * SymbolsMarker   the string identifying a symbol package
 * NugetParams     the command line to be passed to nuget.exe
 
-* * * 
-Any hint, suggestions, pull requests and help is welcome :)
+### Visual Studio 2015
+To configure the local folder as a source for nuget packages, add it in the nuget config:
+![](NugetVS2015.png)
 
+Then pick the local repo (or "All") when browsing the packages:
+![](NugetVS2015-2.png)
+
+
+* * *
+### Feedback
+Any hint, suggestions, pull requests and help is welcome :)
 * * *
 ###### Licensed with MIT License
 ###### Copyright (c) Raffaele Rialdi, 2016, @raffaeler aka Raf
