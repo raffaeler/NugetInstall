@@ -12,6 +12,6 @@ namespace NugetInstall
         public static readonly string NugetExt = "nupkg";
         public static readonly string SymbolsMarker = ".symbols.";
         public static readonly string NugetParams = "add {0} -Source {1}";
-
+        public static readonly string LogFile = "NugetInstall.log";
     }
 }

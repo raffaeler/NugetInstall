@@ -7,51 +7,33 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-// command lines to test:
-// -ns -s:h:\_nuget -t:h:\_nuget -d -w
-// -ns -s:h:\_nuget -t:h:\_nuget -w
-// -ns -s:h:\_nuget -t:h:\_nuget -h -w
+// commonly used command lines:
+// h:\_nuget\NugetInstall -ns -s:h:\_nuget -t:h:\_nuget -d
+// h:\_nuget\NugetInstall -ns -s:h:\_nuget -t:h:\_nuget -w
+// h:\_nuget\NugetInstall -ns -s:h:\_nuget -t:h:\_nuget -h
+// h:\_nuget\NugetInstall -ns -x -d
 
 namespace NugetInstall
 {
     class Program
     {
-        private string _nugetExe = Defaults.NugetExe;
-        private string _nugetExt = Defaults.NugetExt;
-        private string _symbolsMarker = Defaults.SymbolsMarker;
-        private string _nugetParams = Defaults.NugetParams;
-
-        private string _packageFolder;
-        private string _nugetFolder;
-        private string _packageToSearch;
-        private bool _areSymbolsExcluded;
-        private bool _isHelpRequested;
-        private bool _isDeleteRequested;
-        private bool _isLogRequested;
-        private bool _isWaitRequested;
-        private bool _useExePath;
-
-        public string CurrentFolder { get; set; }
+        private Configuration _configuration;
+        private CommandLine _commandLine;
 
         static void Main(string[] args)
         {
             new Program().Start(args);
         }
 
-        private string GetExePath()
-        {
-            var filename = System.Reflection.Assembly.GetEntryAssembly().Location;
-            var path = filename.Substring(0, filename.LastIndexOf('\\'));
-            return path;
-        }
-
         private void Start(string[] args)
         {
-            CurrentFolder = Directory.GetCurrentDirectory();
-            ReadConfiguration();
-            ReadCommandLine(args);
+            _configuration = new Configuration();
+            _configuration.ReadConfiguration();
 
-            if (_isHelpRequested)
+            _commandLine = new CommandLine(_configuration);
+            _commandLine.ReadCommandLine(args);
+
+            if (_commandLine.IsHelpRequested)
             {
                 Help();
             }
@@ -60,105 +42,10 @@ namespace NugetInstall
                 Install();
             }
 
-            if (_isWaitRequested)
+            if (_commandLine.IsWaitRequested)
             {
                 Console.ReadKey();
             }
-        }
-
-        private void ReadConfiguration()
-        {
-            string temp;
-            temp = ConfigurationManager.AppSettings["NugetExt"];
-            if (!string.IsNullOrEmpty(temp))
-                _nugetExt = temp;
-
-            temp = ConfigurationManager.AppSettings["SymbolsMarker"];
-            if (!string.IsNullOrEmpty(temp))
-                _symbolsMarker = temp.ToLower();
-
-            temp = ConfigurationManager.AppSettings["NugetParams"];
-            if (!string.IsNullOrEmpty(temp))
-                _nugetParams = temp;
-        }
-
-        private void ReadCommandLine(string[] args)
-        {
-            if (args.Match("-h"))
-            {
-                _isHelpRequested = true;
-            }
-
-            if (args.Match("-l"))
-            {
-                _isLogRequested = true;
-            }
-
-            if (args.Match("-x"))
-            {
-                _useExePath = true;
-            }
-
-            if (args.Match("-ns"))
-            {
-                _areSymbolsExcluded = true;
-            }
-
-            if (args.Match("-d"))
-            {
-                _isDeleteRequested = true;
-            }
-
-            if (args.Match("-w"))
-            {
-                _isWaitRequested = true;
-            }
-
-            _packageFolder = args.GetParam("-s:");
-            if (_packageFolder == null)
-            {
-                if (_useExePath)
-                {
-                    _packageFolder = GetExePath();
-                }
-                else
-                {
-                    _packageFolder = CurrentFolder;
-                }
-            }
-
-            _nugetFolder = args.GetParam("-t:");
-            if (_nugetFolder == null)
-            {
-                if (_useExePath)
-                {
-                    _nugetFolder = GetExePath();
-                }
-                else
-                {
-                    _nugetFolder = CurrentFolder;
-                }
-            }
-
-            _packageToSearch = args.GetParam("-p:");
-            if (_packageToSearch == null)
-            {
-                _packageToSearch = "*." + _nugetExt;
-            }
-        }
-
-        private string[] GetPackages()
-        {
-            return Directory.GetFiles(_packageFolder, _packageToSearch);
-        }
-
-        private string[] GetPackagesButSymbols()
-        {
-            var all = GetPackages();
-            var symbols = all
-                .Where(s => s.ToLower().Contains(_symbolsMarker.ToLower()));
-
-            return all.Except(symbols).ToArray();
         }
 
         private void Help()
@@ -185,21 +72,28 @@ namespace NugetInstall
             Console.ReadKey();
         }
 
+        private string[] GetPackages()
+        {
+            return Directory.GetFiles(_commandLine.PackageFolder, _commandLine.PackageToSearch);
+        }
+
+        private string[] GetPackagesButSymbols()
+        {
+            var all = GetPackages();
+            var symbols = all
+                .Where(s => s.ToLower().Contains(_configuration.SymbolsMarker.ToLower()));
+
+            return all.Except(symbols).ToArray();
+        }
+
         private void Install()
         {
-            if (_useExePath)
-            {
-                Directory.SetCurrentDirectory(GetExePath());
-            }
-            else
-            {
-                Directory.SetCurrentDirectory(_nugetFolder);
-            }
+            _commandLine.SetCurrentDirectory();
 
             Log("Start");
 
             string[] packages;
-            if (!_areSymbolsExcluded)
+            if (!_commandLine.AreSymbolsExcluded)
             {
                 packages = GetPackages();
             }
@@ -210,10 +104,10 @@ namespace NugetInstall
 
             foreach (var packageFile in packages)
             {
-                var cmdline = string.Format(_nugetParams, packageFile, _nugetFolder);
-                var ret = Execute(_nugetExe, cmdline);
-                Log(_nugetExe + " " + cmdline + "   ==> " + ret.ToString());
-                if (_isDeleteRequested)
+                var cmdline = string.Format(_configuration.NugetParams, packageFile, _commandLine.NugetFolder);
+                var ret = Execute(_configuration.NugetExe, cmdline);
+                Log(_configuration.NugetExe + " " + cmdline + "   ==> " + ret.ToString());
+                if (_commandLine.IsDeleteRequested)
                 {
                     ret = Delete(packageFile);
                     Log(string.Format("Deleting: {0}  {1}", packageFile, ret == 0 ? "successfully" : "but failed"));
@@ -251,12 +145,17 @@ namespace NugetInstall
 
         private void Log(string message)
         {
-            if (_isLogRequested)
+            if (_commandLine.IsLogRequested)
             {
-                string logMessage = string.Format("{0}-{1}\t{2}\r\n", DateTime.Now.ToShortDateString(), DateTime.Now.ToShortTimeString(), message);
+                var now = DateTime.Now;
+                string logMessage = string.Format("{0}-{1}\t{2}\r\n",
+                    now.ToShortDateString(),
+                    now.ToShortTimeString(),
+                    message);
+
                 try
                 {
-                    File.AppendAllText("NugetInstall.log", logMessage);
+                    File.AppendAllText(Defaults.LogFile, logMessage);
                 }
                 catch (Exception err)
                 {
